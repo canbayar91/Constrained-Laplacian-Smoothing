@@ -100,7 +100,7 @@ Angle GeometricFunctions::calculateAngle(const Vector &a, const Vector &b) {
 	} else if (cosValue <= -1.0) {
 		angle = 180.0;
 	} else {
-		angle = acos(cosValue) * 180.0 / PI;
+		angle = radiansToDegrees(acos(cosValue));
 	}
 
 	// Return the angle

@@ -2,8 +2,6 @@
 #include "ProjectionFunctions.h"
 #include <iostream>
 
-int count = 0;
-
 Mesh::Mesh() {
 	// Default constructor
 }
@@ -91,8 +89,6 @@ void Mesh::smooth() {
 	for (size_t i = 0; i < vertexList.size(); i++) {
 		updateCoordinates(i);
 	}
-
-	std::cout << "Quads with projection problem: " << count << std::endl;
 }
 
 void Mesh::updateCoordinates_old(unsigned int index) {
@@ -135,7 +131,7 @@ void Mesh::updateCoordinates_old(unsigned int index) {
 		current->coordinates.x = projectedVertex.x;
 		current->coordinates.y = projectedVertex.y;
 		current->coordinates.z = projectedVertex.z;
-		break;
+		// break;
 		// }
 	}
 }
@@ -172,32 +168,34 @@ void Mesh::updateCoordinates(unsigned int index) {
 			// Create a vector from the start of normal to our point
 			const Vector vector(normal.start, average);
 
-			// Project the point onto the normal vector
+			// Calculate the angle between the normal and the vector
 			const Angle theta = GeometricFunctions::calculateAngle(normal, vector);
 			const Angle radians = GeometricFunctions::degreesToRadians(theta);
-			const Vertex dotProduct = Vertex(normal.getProductX(), normal.getProductY(), normal.getProductZ()) * cos(radians);
 
-			// TODO - I discovered some huge numbers on the projection process of a few quads
-			if (abs(dotProduct.x) > 1000 || abs(dotProduct.y) > 1000 || abs(dotProduct.z) > 1000) {
-				count++;
-			} else {
+			// Get the signed length of the vector on each coordinate plane
+			double productX = vector.getProductX();
+			double productY = vector.getProductY();
+			double productZ = vector.getProductZ();
 
-				// Subtract the dot product from the original point to find the projected location
-				const Vertex projectedVertex = average - dotProduct;
+			// Project the point onto the normal vector using dot product formula
+			const Vertex dotProduct = Vertex(productX, productY, productZ) * cos(radians);
 
-				// Create a vector from the original vertex location to projected vertex location
-				const Vector projectionVector(current->coordinates, projectedVertex);
+			// Subtract the dot product from the original point to find the projected location
+			const Vertex projectedVertex = average - dotProduct;
 
-				// Check if the vector lies in the current triangle by using angles 
-				// If the projected vertex is inside the triangle, update the original vertex coordinates
-				const Angle triangleAngle = GeometricFunctions::calculateAngle(AB, AC);
-				const Angle projectionAngle = GeometricFunctions::calculateAngle(AB, projectionVector);
-				if (projectionAngle < triangleAngle) {
-					current->coordinates.x = projectedVertex.x;
-					current->coordinates.y = projectedVertex.y;
-					current->coordinates.z = projectedVertex.z;
-					break;
-				}
+			// Create a vector from the original vertex location to projected vertex location
+			const Vector projectionVector(current->coordinates, projectedVertex);
+
+			// Check if the vector lies in the current triangle by using angles 
+			// If the projected vertex is inside the triangle, update the original vertex coordinates
+			const Angle triangleAngle = GeometricFunctions::calculateAngle(AB, AC);
+			const Angle projectionAngle1 = GeometricFunctions::calculateAngle(AB, projectionVector);
+			const Angle projectionAngle2 = GeometricFunctions::calculateAngle(AC, projectionVector);
+			if (projectionAngle1 < triangleAngle && projectionAngle2 < triangleAngle) {
+				current->coordinates.x = projectedVertex.x;
+				current->coordinates.y = projectedVertex.y;
+				current->coordinates.z = projectedVertex.z;
+				break;
 			}
 		}
 	}
