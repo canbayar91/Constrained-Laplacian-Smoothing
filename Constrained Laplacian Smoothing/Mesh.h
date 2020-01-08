@@ -17,7 +17,8 @@ public:
 	size_t getVertexCount();
 	size_t getFaceCount();
 
-	NeighborhoodVertex* getVertex(size_t index);
+	NeighborhoodVertex* getOriginalVertex(size_t index);
+	NeighborhoodVertex* getUpdatedVertex(size_t index);
 	Face* getFace(size_t index);
 
 	void smooth();
@@ -27,7 +28,8 @@ public:
 
 private:
 
-	std::vector<NeighborhoodVertex*> vertexList;
+	std::vector<NeighborhoodVertex*> originalVertices;
+	std::vector<NeighborhoodVertex*> updatedVertices;
 	std::vector<Face*> faceList;
 
 	std::map<unsigned int, std::vector<unsigned int>> vertexMapping;

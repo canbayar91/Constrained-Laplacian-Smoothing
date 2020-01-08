@@ -52,10 +52,10 @@ void MeshReader::readQuadrilateralMesh(std::string filepath, Mesh* mesh) {
 		unsigned int a, b, c, d;
 		infile >> a >> b >> c >> d;
 
-		NeighborhoodVertex* vertexA = mesh->getVertex(a);
-		NeighborhoodVertex* vertexB = mesh->getVertex(b);
-		NeighborhoodVertex* vertexC = mesh->getVertex(c);
-		NeighborhoodVertex* vertexD = mesh->getVertex(d);
+		NeighborhoodVertex* vertexA = mesh->getOriginalVertex(a);
+		NeighborhoodVertex* vertexB = mesh->getOriginalVertex(b);
+		NeighborhoodVertex* vertexC = mesh->getOriginalVertex(c);
+		NeighborhoodVertex* vertexD = mesh->getOriginalVertex(d);
 
 		// Create a new quadrilateral face
 		Quadrilateral* face = new Quadrilateral(vertexA, vertexB, vertexC, vertexD);
@@ -84,7 +84,7 @@ void MeshReader::writeQuadrilateralMesh(std::string filepath, Mesh* mesh) {
 
 	// Write each vertex coordinates
 	for (unsigned int i = 0; i < mesh->getVertexCount(); i++) {
-		Vertex vertex = mesh->getVertex(i)->coordinates;
+		Vertex vertex = mesh->getUpdatedVertex(i)->coordinates;
 		outfile << vertex.x << " " << vertex.y << " " << vertex.z << std::endl;
 	}
 

@@ -7,14 +7,23 @@ Mesh::Mesh() {
 }
 
 Mesh::~Mesh() {
-	for (size_t i = 0; i < vertexList.size(); i++) {
-		delete vertexList[i];
+
+	size_t vertexCount = getVertexCount();
+	for (size_t i = 0; i < vertexCount; i++) {
+		delete originalVertices[i];
+		delete updatedVertices[i];
 	}
 }
 
 void Mesh::addVertex(unsigned int id, Vertex coordinates) {
+
+	// Add the vertex to the original vertex list, which will define the surface
 	NeighborhoodVertex* vertex = new NeighborhoodVertex(id, coordinates);
-	vertexList.push_back(vertex);
+	originalVertices.push_back(vertex);
+
+	// Add a copy of it to the updated vertices list, which will be changed in each iteration
+	NeighborhoodVertex* copy = new NeighborhoodVertex(id, coordinates);
+	updatedVertices.push_back(copy);
 }
 
 void Mesh::addFace(unsigned int id, Quadrilateral* quadrilateral) {
@@ -29,10 +38,11 @@ void Mesh::addFace(unsigned int id, Quadrilateral* quadrilateral) {
 	vertexMapping[c->id].push_back(d->id);
 	vertexMapping[d->id].push_back(a->id);
 
-	vertexMapping[a->id].push_back(d->id);
-	vertexMapping[b->id].push_back(a->id);
-	vertexMapping[c->id].push_back(b->id);
-	vertexMapping[d->id].push_back(c->id);
+	// Removed this block because it causes same neighbors to be added twice (once clockwise, once counter-clockwise)
+	// vertexMapping[a->id].push_back(d->id);
+	// vertexMapping[b->id].push_back(a->id);
+	// vertexMapping[c->id].push_back(b->id);
+	// vertexMapping[d->id].push_back(c->id);
 
 	Face* face = new Face(id, quadrilateral);
 	faceList.push_back(face);
@@ -44,15 +54,19 @@ void Mesh::addFace(unsigned int id, Quadrilateral* quadrilateral) {
 }
 
 size_t Mesh::getVertexCount() {
-	return vertexList.size();
+	return originalVertices.size();
 }
 
 size_t Mesh::getFaceCount() {
 	return faceList.size();
 }
 
-NeighborhoodVertex* Mesh::getVertex(size_t index) {
-	return vertexList[index];
+NeighborhoodVertex* Mesh::getOriginalVertex(size_t index) {
+	return originalVertices[index];
+}
+
+NeighborhoodVertex* Mesh::getUpdatedVertex(size_t index) {
+	return updatedVertices[index];
 }
 
 Face* Mesh::getFace(size_t index) {
@@ -86,7 +100,8 @@ void Mesh::smooth() {
 
 	std::cout << "Maximum Edge Length: " << maxLength << std::endl; */
 
-	for (size_t i = 0; i < vertexList.size(); i++) {
+	size_t vertexCount = getVertexCount();
+	for (size_t i = 0; i < vertexCount; i++) {
 		updateCoordinates(i);
 	}
 }
@@ -119,15 +134,27 @@ void Mesh::updateCoordinates_old(unsigned int index) {
 		// Project the point onto the normal vector
 		const Angle theta = GeometricFunctions::calculateAngle(normal, vector);
 		const Angle radians = GeometricFunctions::degreesToRadians(theta);
-		const Vertex dotProduct = Vertex(normal.getProductX(), normal.getProductY(), normal.getProductZ()) * cos(radians);
+		
+		// Calculate the dot product of the vector to the point with the normal
+		double dotProduct = GeometricFunctions::dotProduct(vector, normal);
+		double dotProductNormal = GeometricFunctions::dotProduct(normal, normal);
+		double normalizedProduct = dotProduct / dotProductNormal;
 
-		// Subtract the dot product from the original point to find the projected location
-		const Vertex projectedVertex = average - dotProduct;
+		// Get the signed length of the vector on each coordinate plane
+		double productX = normal.getProductX();
+		double productY = normal.getProductY();
+		double productZ = normal.getProductZ();
+
+		// Calculate the movement amount by vector by multiplying normal vector with dot product
+		const Vertex movementAmount = Vertex(productX, productY, productZ) * normalizedProduct;
+
+		// Subtract the movement amount from the original point to find the projected location
+		const Vertex projectedVertex = average - movementAmount;
 
 		// If the projected vertex is inside the quadrilateral, update the original vertex coordinates
 		// Note: I decided not to use this approach because the check requires projection to z = 0
 		// if (projectedQuad.checkInside(projectedVertex)) {
-		NeighborhoodVertex* current = vertexList[index];
+		NeighborhoodVertex* current = updatedVertices[index];
 		current->coordinates.x = projectedVertex.x;
 		current->coordinates.y = projectedVertex.y;
 		current->coordinates.z = projectedVertex.z;
@@ -142,7 +169,8 @@ void Mesh::updateCoordinates(unsigned int index) {
 	const Vertex average = calculateAverageCoordinates(index);
 
 	// Get the vertex with the given index
-	NeighborhoodVertex* current = vertexList[index];
+	NeighborhoodVertex* original = originalVertices[index];
+	NeighborhoodVertex* current = updatedVertices[index];
 
 	// We want to iterate through each face and project the point onto each plane defined by the face
 	// When we find the face that the projected vertex lies, the position of the projected point is the new position of the vertex
@@ -153,7 +181,7 @@ void Mesh::updateCoordinates(unsigned int index) {
 		Quadrilateral* face = faceList[faceId]->getQuadrilateral();
 
 		// Find the node that stores the given vertex 
-		Node* node = face->findNode(current);
+		Node* node = face->findNode(original);
 		if (node != NULL) {
 
 			// Find its next and previous vertices
@@ -161,8 +189,8 @@ void Mesh::updateCoordinates(unsigned int index) {
 			NeighborhoodVertex* previous = node->prev->data;
 
 			// Find the normal of the quadrilateral using two of its edges
-			const Vector AB(current->coordinates, next->coordinates);
-			const Vector AC(current->coordinates, previous->coordinates);
+			const Vector AB(original->coordinates, next->coordinates);
+			const Vector AC(original->coordinates, previous->coordinates);
 			const Normal normal = GeometricFunctions::findNormal(AB, AC);
 
 			// Create a vector from the start of normal to our point
@@ -172,19 +200,24 @@ void Mesh::updateCoordinates(unsigned int index) {
 			const Angle theta = GeometricFunctions::calculateAngle(normal, vector);
 			const Angle radians = GeometricFunctions::degreesToRadians(theta);
 
+			// Calculate the dot product of the vector to the point with the normal
+			double dotProduct = GeometricFunctions::dotProduct(vector, normal);
+			double dotProductNormal = GeometricFunctions::dotProduct(normal, normal);
+			double normalizedProduct = dotProduct / dotProductNormal;
+
 			// Get the signed length of the vector on each coordinate plane
-			double productX = vector.getProductX();
-			double productY = vector.getProductY();
-			double productZ = vector.getProductZ();
+			double productX = normal.getProductX();
+			double productY = normal.getProductY();
+			double productZ = normal.getProductZ();
 
-			// Project the point onto the normal vector using dot product formula
-			const Vertex dotProduct = Vertex(productX, productY, productZ) * cos(radians);
+			// Calculate the movement amount by vector by multiplying normal vector with dot product
+			const Vertex movementAmount = Vertex(productX, productY, productZ) * normalizedProduct;
 
-			// Subtract the dot product from the original point to find the projected location
-			const Vertex projectedVertex = average - dotProduct;
+			// Subtract the movement amount from the original point to find the projected location
+			const Vertex projectedVertex = average - movementAmount;
 
 			// Create a vector from the original vertex location to projected vertex location
-			const Vector projectionVector(current->coordinates, projectedVertex);
+			const Vector projectionVector(original->coordinates, projectedVertex);
 
 			// Check if the vector lies in the current triangle by using angles 
 			// If the projected vertex is inside the triangle, update the original vertex coordinates
@@ -201,7 +234,7 @@ void Mesh::updateCoordinates(unsigned int index) {
 	}
 }
 
-const Vertex  Mesh::calculateAverageCoordinates(unsigned int index) {
+const Vertex Mesh::calculateAverageCoordinates(unsigned int index) {
 
 	double totalX = 0;
 	double totalY = 0;
@@ -209,17 +242,17 @@ const Vertex  Mesh::calculateAverageCoordinates(unsigned int index) {
 
 	std::vector<unsigned int> neighbors = vertexMapping[index];
 	for (unsigned int vertexId : neighbors) {
-		NeighborhoodVertex* neighbor = vertexList[vertexId];
+		NeighborhoodVertex* neighbor = updatedVertices[vertexId];
 		totalX += neighbor->coordinates.x;
 		totalY += neighbor->coordinates.y;
 		totalZ += neighbor->coordinates.z;
 	}
 
-	unsigned int neighborCount = neighbors.size();
+	unsigned int vertexCount = neighbors.size();
 
-	double x = totalX / neighborCount;
-	double y = totalY / neighborCount;
-	double z = totalZ / neighborCount;
+	double x = totalX / vertexCount;
+	double y = totalY / vertexCount;
+	double z = totalZ / vertexCount;
 
 	return Vertex(x, y, z);
 }
